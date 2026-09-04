@@ -1,0 +1,10 @@
+{
+  // Static-asset-only Worker: no server code, just the files in ./public
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "haunt",
+  "compatibility_date": "2026-09-04",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "single-page-application"
+  }
+}
