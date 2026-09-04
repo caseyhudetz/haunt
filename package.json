@@ -1,0 +1,16 @@
+{
+  "name": "haunt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "schema": "wrangler d1 execute haunt --remote --file=./schema.sql"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.72.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.129.0"
+  }
+}

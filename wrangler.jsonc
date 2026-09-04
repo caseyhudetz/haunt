@@ -1,10 +1,38 @@
 {
-  // Static-asset-only Worker: no server code, just the files in ./public
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "haunt",
+  "main": "src/index.js",
   "compatibility_date": "2026-09-04",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Static files. Requests that match a file in ./public are served directly;
+  // everything else (i.e. /api/*) falls through to the Worker.
   "assets": {
     "directory": "./public",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
-  }
+  },
+
+  // Listings, tallies and ballots. Strongly consistent, so votes can be
+  // incremented atomically instead of read-modify-written by the browser.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "haunt",
+      "database_id": "PUT-YOUR-D1-DATABASE-ID-HERE"
+    }
+  ],
+
+  // Photo bytes. Written once, never edited, so KV's eventual consistency
+  // costs nothing and the 25MB value ceiling is far above any submission.
+  "kv_namespaces": [
+    {
+      "binding": "PHOTOS",
+      "id": "PUT-YOUR-KV-NAMESPACE-ID-HERE"
+    }
+  ]
+
+  // Secrets (set with `wrangler secret put`, never committed):
+  //   ANTHROPIC_API_KEY - photo moderation
+  //   ADMIN_CODE        - unlocks the admin panel
 }

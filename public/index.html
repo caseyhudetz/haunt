@@ -285,9 +285,9 @@ textarea.csv{width:100%;height:120px;background:var(--shadow);border:1px solid v
 
 <script>
 /* ================= config ================= */
-const K={index:'haunt:index',img:id=>'haunt:img:'+id,votes:'haunt:votes',cfg:'haunt:cfg',mine:'haunt:mine',seeded:'haunt:seeded'};
+const K={mine:'haunt:mine'};
 const BOUNDS={n:41.9471,s:41.9326,w:-87.6588,e:-87.6330};   // Addison to Diversey, Racine to the lake
-const DEFAULT_CFG={name:'East Lakeview',start:'2026-10-01T00:00',end:'2026-10-31T23:59',code:'1031',
+const DEFAULT_CFG={name:'East Lakeview',start:'2026-10-01T00:00',end:'2026-10-31T23:59',
   bounds:{...BOUNDS},dupeM:35,requireEmail:false,scan:true,nearM:60,inPersonWeight:2};
 const MAX_SHOTS=4,MAX_PER_DAY=5;
 let cfg={...DEFAULT_CFG},index=[],votes={},mine={voted:{},own:[],subs:[],email:''};
@@ -295,10 +295,27 @@ let map,pickMap,markers={},selected=null,addingTo=null,brandTaps=0,brandTimer=nu
 let me=null,watchId=null,meMarker=null,meRing=null,labelLayer=null;
 let draft={shots:[],lat:null,lng:null,exif:null,device:null,trust:'manual',names:[],dupe:null};
 
-/* ================= storage ================= */
-async function sget(k,sh=true,fb=null){try{const r=await window.storage.get(k,sh);return r?JSON.parse(r.value):fb}catch(e){return fb}}
-async function sset(k,v,sh=true){try{await window.storage.set(k,JSON.stringify(v),sh);return true}catch(e){toast('Could not save. Check your connection.');return false}}
-async function sdel(k,sh=true){try{await window.storage.delete(k,sh)}catch(e){}}
+/* ================= api =================
+   Everything shared - pins, photos, tallies - lives in the Worker so two
+   phones see the same board. Only this device's own history stays local. */
+let adminCode='';
+function voterToken(){
+  let t=null;try{t=localStorage.getItem('haunt:voter')}catch(e){}
+  if(!t){t=(crypto.randomUUID?crypto.randomUUID():uid()+uid());try{localStorage.setItem('haunt:voter',t)}catch(e){}}
+  return t;
+}
+async function api(path,opts={}){
+  const headers={'content-type':'application/json','x-haunt-voter':voterToken()};
+  if(adminCode)headers['x-haunt-admin']=adminCode;
+  const res=await fetch('/api/'+path,{method:opts.body?'POST':'GET',headers,
+    body:opts.body?JSON.stringify(opts.body):undefined});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok){const e=new Error(data.error||'Request failed');e.status=res.status;e.data=data;throw e}
+  return data;
+}
+const photoURL=pid=>pid?'/api/photo/'+encodeURIComponent(pid):'';
+function loadMine(){try{return JSON.parse(localStorage.getItem(K.mine)||'null')}catch(e){return null}}
+function saveMine(){try{localStorage.setItem(K.mine,JSON.stringify(mine))}catch(e){}}
 
 /* ================= helpers ================= */
 const $=s=>document.querySelector(s);
@@ -385,7 +402,7 @@ function icon(n){
   const v=votesOf(n.id),halo=(10+Math.min(v,40)*1.1).toFixed(0)+'px';
   const cls='pinwrap '+(mine.own.includes(n.id)?'mine ':'')+(selected===n.id?'sel ':'')+(nearOf(n)!=null&&!mine.voted[n.id]?'near':'');
   return L.divIcon({className:cls,iconSize:[0,0],
-    html:`<div class="pin" style="--halo:${halo}"><img src="${n.cover||''}" alt="">${v?`<span class="n">${v}</span>`:''}</div>`});
+    html:`<div class="pin" style="--halo:${halo}"><img src="${photoURL(n.cover)}" alt="">${v?`<span class="n">${v}</span>`:''}</div>`});
 }
 function drawPins(){
   Object.values(markers).forEach(m=>map.removeLayer(m));markers={};
@@ -454,7 +471,7 @@ async function openSheet(id){
   galIds=(n.photos||[]).slice();
   const gal=$('#gal');
   gal.classList.toggle('multi',galIds.length>1);
-  gal.innerHTML=(galIds.length?galIds:[0]).map(()=>`<img src="${n.cover||''}" alt="">`).join('');
+  gal.innerHTML=(galIds.length?galIds:[n.cover]).map(pid=>`<img src="${photoURL(pid)}" alt="" loading="lazy">`).join('');
   $('#dots').innerHTML=galIds.length>1?galIds.map((_,i)=>`<i class="${i?'':'on'}"></i>`).join(''):'';
   $('#sheetNick').textContent=titleOf(n);
   $('#sheetMeta').textContent=subOf(n);
@@ -467,7 +484,6 @@ async function openSheet(id){
     $('#locate').classList.add('up');$('#walkBtn').classList.add('up');map.panTo([n.lat,n.lng],{animate:true})});
   const imgs=[...gal.querySelectorAll('img')];
   imgs.forEach((el,i)=>el.onclick=()=>openViewer(id,i));
-  galIds.forEach(async(pid,i)=>{const s=await sget(K.img(pid));if(s&&selected===id&&imgs[i])imgs[i].src=s});
 }
 $('#gal').addEventListener('scroll',()=>{const g=$('#gal');
   const i=Math.round(g.scrollLeft/(g.scrollWidth/Math.max(galIds.length,1)));
@@ -479,12 +495,12 @@ function closeSheet(){$('#sheet').classList.remove('on');$('#locate').classList.
 async function openViewer(id,start){
   const n=index.find(x=>x.id===id);if(!n)return;
   const ids=n.photos||[];
-  $('#viewerStrip').innerHTML=ids.map(()=>`<img src="${n.cover||''}" alt="">`).join('');
+  $('#viewerStrip').innerHTML=ids.map(pid=>`<img src="${photoURL(pid)}" alt="">`).join('');
   $('#viewerLbl').textContent=titleOf(n)+(ids.length>1?'  \u00B7  '+ids.length+' photos':'');
   $('#viewer').classList.add('on');
   const els=[...$('#viewerStrip').querySelectorAll('img')];
   requestAnimationFrame(()=>{if(els[start])els[start].scrollIntoView({inline:'center',block:'nearest'})});
-  ids.forEach(async(pid,i)=>{const s=await sget(K.img(pid));if(s&&els[i])els[i].src=s});
+
 }
 function closeViewer(){$('#viewer').classList.remove('on')}
 
@@ -493,11 +509,14 @@ async function vote(id){
   if(phase()==='after'||mine.voted[id])return;
   const n=index.find(x=>x.id===id);if(!n)return;
   const near=nearOf(n)!=null;
-  votes=await sget(K.votes,true,{})||{};
-  const t=tally(id);
-  votes[id]=near?{r:t.r,p:t.p+1}:{r:t.r+1,p:t.p};
-  await sset(K.votes,votes);
-  mine.voted[id]=near?'p':'r';await sset(K.mine,mine,false);
+  let res;
+  try{res=await api('vote',{body:{id,kind:near?'p':'r'}})}
+  catch(err){
+    if(err.status===409){mine.voted[id]='r';saveMine();refreshVoteBtn(id);return toast('You already voted for this one.')}
+    return toast('Could not record that vote. Check your connection.');
+  }
+  votes[id]=res.tally;
+  mine.voted[id]=near?'p':'r';saveMine();
   if(selected===id){$('#sheetCount .n').textContent=votesOf(id);refreshVoteBtn(id)}
   drawPins();renderWalkBar();
   toast(near?'Double vote counted. You were there.':'Voted.');
@@ -564,13 +583,10 @@ screenshot: the image is a screenshot, a photo of a screen, a meme or stock art.
 names: two playful nicknames for this display, three words max each, no address and no personal names.
 reason: one short sentence, plain language, only if something is wrong.`;
 async function scanPhoto(dataUrl){
-  const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:[
-      {type:'image',source:{type:'base64',media_type:'image/jpeg',data:dataUrl.split(',')[1]}},
-      {type:'text',text:SCAN_PROMPT}]}]})});
-  const data=await res.json();
-  const txt=(data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('').replace(/```json|```/g,'').trim();
-  return JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1));
+  // The key lives in the Worker, never in the page. A null result means
+  // "could not be checked" and the photo gets flagged for a human.
+  const res=await api('scan',{body:{image:dataUrl}});
+  return res.ok?res.verdict:null;
 }
 function verdict(v){
   if(!v)return{level:'unscanned',msg:'Could not be checked automatically. It will be reviewed by hand.'};
@@ -643,18 +659,21 @@ async function reshrink(url){return shrink(await(await fetch(url)).blob(),900,.7
 async function addPhotosTo(id,files){
   const n=index.find(x=>x.id===id);if(!n)return;
   toast('Checking the photo...');
+  const ready=[];let review=false;
   for(const f of files.slice(0,8-(n.photos||[]).length)){
     let full;try{full=await shrink(f,1800,.82)}catch(e){continue}
     if(cfg.scan){let v=null;try{v=await scanPhoto(await reshrink(full))}catch(e){v=null}
       const r=verdict(v);
       if(r.level==='block'){toast(r.msg);continue}
-      if(r.level!=='ok')n.review=true}
-    const pid=uid();
-    if(await sset(K.img(pid),full)){n.photos=n.photos||[];n.photos.push(pid)}
+      if(r.level!=='ok')review=true}
+    ready.push(full);
   }
-  const fresh=await sget(K.index,true,[])||[];
-  const i=fresh.findIndex(x=>x.id===id);if(i>=0)fresh[i]=n;else fresh.push(n);
-  index=fresh;await sset(K.index,index);openSheet(id);toast('Photo added.');
+  if(!ready.length)return;
+  try{
+    const res=await api('photos',{body:{id,photos:ready,review}});
+    n.photos=res.photos;if(review)n.review=true;
+    openSheet(id);toast('Photo added.');
+  }catch(err){toast('Could not save that photo. Check your connection.')}
 }
 function setupPicker(){
   if(pickMap){setTimeout(()=>pickMap.invalidateSize(),200);return}
@@ -697,12 +716,16 @@ async function mergeIntoDupe(){
   const good=usable();if(!good.length)return toast('No usable photos to add.');
   $('#mergeBtn').textContent='Adding...';
   const n=index.find(x=>x.id===target.id);
-  for(const sh of good.slice(0,8-(n.photos||[]).length)){
-    const pid=uid();if(await sset(K.img(pid),sh.full)){n.photos=n.photos||[];n.photos.push(pid)}
-    if(sh.state!=='ok')n.review=true}
-  const fresh=await sget(K.index,true,[])||[];
-  const i=fresh.findIndex(x=>x.id===n.id);if(i>=0)fresh[i]=n;index=fresh;
-  await sset(K.index,index);
+  const batch=good.slice(0,8-(n.photos||[]).length);
+  if(!batch.length)return toast('That one already has the maximum photos.');
+  try{
+    const res=await api('photos',{body:{id:n.id,photos:batch.map(sh=>sh.full),
+      review:batch.some(sh=>sh.state!=='ok')}});
+    n.photos=res.photos;if(batch.some(sh=>sh.state!=='ok'))n.review=true;
+  }catch(err){
+    $('#mergeBtn').textContent='Add to that one';
+    return toast('Could not add those photos. Check your connection.');
+  }
   resetDraft();go('map');drawPins();setTimeout(()=>openSheet(n.id),300);toast('Photos added to that one.');
 }
 function locate(ok){
@@ -727,17 +750,22 @@ $('#submitBtn').onclick=async()=>{
   const em=$('#email').value.trim();
   if(cfg.requireEmail&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em))return toast('Add a valid email to submit.');
   const btn=$('#submitBtn');btn.disabled=true;btn.textContent='Adding...';
-  const id=uid(),pids=[];
-  for(const sh of good){const pid=uid();if(await sset(K.img(pid),sh.full))pids.push(pid)}
-  const rec={id,lat:+draft.lat.toFixed(6),lng:+draft.lng.toFixed(6),nick:$('#nick').value.trim().slice(0,46),
-    ts:Date.now(),hidden:false,cover:good[0].thumb,photos:pids,trust:draft.trust,
-    review:good.some(s=>s.state!=='ok'),email:em||''};
-  index=await sget(K.index,true,[])||[];index.push(rec);
-  const ok=await sset(K.index,index);
+  let rec;
+  try{
+    const res=await api('submit',{body:{
+      lat:draft.lat,lng:draft.lng,nick:$('#nick').value.trim().slice(0,46),
+      cover:good[0].thumb,photos:good.map(s=>s.full),trust:draft.trust,
+      review:good.some(s=>s.state!=='ok'),email:em||''}});
+    rec=res.listing;
+  }catch(err){
+    btn.disabled=false;btn.textContent='Add it to the map';
+    return toast(err.status===429?'That is five in a day. Try again tomorrow.':'Could not add it. Check your connection.');
+  }
   btn.disabled=false;btn.textContent='Add it to the map';
-  if(!ok)return;
+  const id=rec.id;
+  index.push(rec);
   mine.own.push(id);mine.subs=(mine.subs||[]).concat(Date.now());if(em)mine.email=em;
-  await sset(K.mine,mine,false);
+  saveMine();
   resetDraft();go('map');drawPins();map.setView([rec.lat,rec.lng],17);
   setTimeout(()=>openSheet(id),400);toast('Added. Share it to get votes.');
 };
@@ -772,7 +800,7 @@ function renderAdmin(){
   const flagged=index.filter(n=>n.review&&!n.hidden).length;
   const kb=Math.round(JSON.stringify(index).length/1024);
   const row=n=>{const t=TRUST[n.trust||'manual'],v=tally(n.id);
-    return `<div class="arow ${n.hidden?'hid':''}"><img src="${n.cover||''}" alt="">
+    return `<div class="arow ${n.hidden?'hid':''}"><img src="${photoURL(n.cover)}" alt="" loading="lazy">
       <span class="t"><b>${esc(titleOf(n))}</b>
       <span><span class="tag ${t[0]}">${t[1]}</span>${n.review?'<span class="tag f">Review</span>':''}${n.demo?'<span class="tag m">Demo</span>':''}</span>
       <span>${votesOf(n.id)} votes &middot; ${v.p} in person &middot; ${(n.photos||[]).length} photos${n.email?' &middot; '+esc(n.email):''}</span></span>
@@ -790,13 +818,13 @@ function renderAdmin(){
     ${index.slice().sort((a,b)=>b.ts-a.ts).map(row).join('')||'<p style="color:var(--dim);font-size:13.5px">Nothing submitted yet.</p>'}
     <button class="btn btn-ghost danger" style="margin:22px 0 0" id="wipeBtn">Delete everything</button>`;
   $('#adminPane').querySelectorAll('[data-hide]').forEach(b=>b.onclick=async()=>{
-    const n=index.find(x=>x.id===b.dataset.hide);n.hidden=!n.hidden;n.review=false;
-    await sset(K.index,index);renderAdmin();drawPins()});
+    const n=index.find(x=>x.id===b.dataset.hide);
+    try{await api('admin/hide',{body:{id:n.id,hidden:!n.hidden}})}catch(e){return toast('Could not save that.')}
+    n.hidden=!n.hidden;n.review=false;renderAdmin();drawPins()});
   $('#adminPane').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
     const n=index.find(x=>x.id===b.dataset.del);if(!confirm('Delete this for everyone?'))return;
-    for(const p of n.photos||[])await sdel(K.img(p));
-    index=index.filter(x=>x.id!==n.id);delete votes[n.id];
-    await sset(K.index,index);await sset(K.votes,votes);renderAdmin();drawPins()});
+    try{await api('admin/delete',{body:{id:n.id}})}catch(e){return toast('Could not delete that.')}
+    index=index.filter(x=>x.id!==n.id);delete votes[n.id];renderAdmin();drawPins()});
   $('#csvBtn').onclick=()=>{
     const csv=['rank,title,votes_total,votes_remote,votes_in_person,photos,location_source,needs_review,email,lat,lng,submitted,hidden'].concat(
       ranked().map((n,i)=>{const t=tally(n.id);return [i+1,`"${titleOf(n).replace(/"/g,'""')}"`,votesOf(n.id),t.r,t.p,
@@ -814,9 +842,8 @@ function renderAdmin(){
       <button class="btn btn-primary" id="wipeGo">Delete</button></div>`);
     $('#wipeGo').onclick=async()=>{
       if($('#wipeIn').value!=='DELETE')return toast('Type DELETE to confirm.');
-      for(const n of index)for(const p of n.photos||[])await sdel(K.img(p));
-      index=[];votes={};mine={voted:{},own:[],subs:[],email:''};
-      await sset(K.index,index);await sset(K.votes,votes);await sset(K.mine,mine,false);
+      try{await api('admin/wipe',{body:{}})}catch(e){return toast('Could not delete. Check your connection.')}
+      index=[];votes={};mine={voted:{},own:[],subs:[],email:''};saveMine();
       closeModal();renderAdmin();drawPins();renderRank();toast('Everything deleted.')}};
 }
 function openSettings(){
@@ -845,7 +872,8 @@ function openSettings(){
     cfg={...cfg,name:$('#cName').value.trim()||'the neighborhood',start:$('#cStart').value,end:$('#cEnd').value,
       bounds:{n:+$('#bN').value,s:+$('#bS').value,w:+$('#bW').value,e:+$('#bE').value},
       nearM:Math.max(20,+$('#cNear').value||60),inPersonWeight:Math.max(1,+$('#cWeight').value||2),scan,requireEmail:mail};
-    await sset(K.cfg,cfg);closeModal();renderClock();renderAdmin();applyCfg();toast('Saved. Reload to redraw the map.')};
+    try{await api('admin/cfg',{body:{cfg}})}catch(e){return toast('Could not save the settings.')}
+    closeModal();renderClock();renderAdmin();applyCfg();toast('Saved. Reload to redraw the map.')};
 }
 function applyCfg(){
   $('#emailHint').textContent=(cfg.requireEmail?'Required. ':'Optional. ')+'Only used to reach you if this one wins. Never shown on the map.';
@@ -858,7 +886,12 @@ $('#brand').onclick=()=>{
   showModal(`<h3>Admin</h3><p>Enter the passcode.</p><input class="field" id="pin" inputmode="numeric" placeholder="Passcode">
     <div style="display:flex;gap:9px;margin-top:14px"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
     <button class="btn btn-primary" id="pinGo">Open</button></div>`);
-  $('#pinGo').onclick=()=>{if($('#pin').value.trim()!==cfg.code)return toast('Wrong passcode.');closeModal();go('admin')}};
+  $('#pinGo').onclick=async()=>{
+    const tryCode=$('#pin').value.trim(),prev=adminCode;
+    adminCode=tryCode;
+    try{await api('admin/check',{body:{}})}
+    catch(e){adminCode=prev;return toast('Wrong passcode.')}
+    closeModal();go('admin')}};
 
 /* ================= demo ================= */
 function rnd(s){let t=s+0x6D2B79F5;return()=>{t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
@@ -925,19 +958,16 @@ const DEMO=[
 ];
 async function seedDemo(){
   const now=Date.now();
-  index=await sget(K.index,true,[])||[];votes=await sget(K.votes,true,{})||{};
-  for(let i=0;i<DEMO.length;i++){
-    const d=DEMO[i],id='demo-'+i,pids=[];
-    for(let j=0;j<d.ph;j++){const pid=id+'-'+j;await sset(K.img(pid),scene(i+3,j));pids.push(pid)}
-    index.push({id,lat:d.lat,lng:d.lng,nick:d.nick,ts:now-(14-i)*864e5,hidden:false,
-      cover:scene(i+3,0),photos:pids,demo:true,trust:d.t,review:!!d.rev,email:''});
-    votes[id]={r:d.r,p:d.p};
-  }
-  await sset(K.index,index);await sset(K.votes,votes);await sset(K.seeded,true);
+  const listings=DEMO.map((d,i)=>({
+    id:'demo-'+i,lat:d.lat,lng:d.lng,nick:d.nick,ts:now-(14-i)*864e5,
+    photos:Array.from({length:d.ph},(_,j)=>scene(i+3,j)),
+    trust:d.t,review:!!d.rev,r:d.r,p:d.p}));
+  await api('admin/seed',{body:{listings}});
+  await refreshState();
 }
 async function removeDemo(){
-  for(const n of index.filter(x=>x.demo)){for(const p of n.photos||[])await sdel(K.img(p));delete votes[n.id]}
-  index=index.filter(x=>!x.demo);await sset(K.index,index);await sset(K.votes,votes);
+  await api('admin/unseed',{body:{}});
+  await refreshState();
 }
 
 /* ================= shell ================= */
@@ -964,16 +994,25 @@ function showBanner(){
 }
 
 /* ================= boot ================= */
+async function refreshState(){
+  const st=await api('state');
+  if(st.cfg)cfg={...DEFAULT_CFG,...st.cfg,bounds:{...BOUNDS,...(st.cfg.bounds||{})}};
+  index=st.index||[];votes=st.votes||{};
+  renderClock();drawPins();applyCfg();
+  if($('#v-rank').classList.contains('on'))renderRank();
+  if($('#v-admin').classList.contains('on'))renderAdmin();
+}
 (async function(){
-  const [c,i,v,m,s]=await Promise.all([sget(K.cfg,true,null),sget(K.index,true,[]),sget(K.votes,true,{}),sget(K.mine,false,null),sget(K.seeded,true,false)]);
-  if(c)cfg={...DEFAULT_CFG,...c,bounds:{...BOUNDS,...(c.bounds||{})}};
-  index=i||[];votes=v||{};mine=m||{voted:{},own:[],subs:[],email:''};
+  mine=loadMine()||{voted:{},own:[],subs:[],email:''};
   if(Array.isArray(mine.voted))mine.voted=mine.voted.reduce((a,id)=>(a[id]='r',a),{});
   if(!mine.voted)mine.voted={};['own','subs'].forEach(k=>{if(!mine[k])mine[k]=[]});
   initMap();
-  if(!s&&!index.length)await seedDemo();
-  renderClock();renderShots();drawPins();showBanner();applyCfg();
+  try{await refreshState()}
+  catch(e){toast('Could not reach the board. Showing an empty map.')}
+  renderShots();showBanner();
   setInterval(renderClock,60000);
+  // Other people are voting and adding pins while this page is open.
+  setInterval(()=>{if(document.visibilityState==='visible')refreshState().catch(()=>{})},45000);
   if(live().length)map.fitBounds(L.latLngBounds(live().map(n=>[n.lat,n.lng])),{padding:[70,70],maxZoom:15});
 })();
 </script>
