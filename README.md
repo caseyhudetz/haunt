@@ -24,34 +24,40 @@ pick a favorite; the winner gets a lawn sign.
 | `public/index.html` | The page neighbors see |
 | `public/admin.html` | Your admin page |
 | `src/index.js` | The Cloudflare Worker: API, photos, link previews |
-| `schema.sql` | Database tables |
 
 Houses and votes live in Cloudflare **D1**; photos live in **KV**. Photos are
 resized on your phone before upload (a 12MP shot becomes ~60KB, plus a ~15KB
 version for the grid).
 
-## One-time setup
+## Going live
+
+There are no IDs to copy and no schema to run. On the first deploy, wrangler
+creates the D1 database and the photo store and attaches them to the Worker;
+later deploys reuse them. The Worker creates its own tables on the first request.
+
+**From the Cloudflare dashboard** (this repo is already connected via Workers Builds):
+
+1. Get this code onto the branch the dashboard builds from (usually `main`).
+   The push triggers the deploy.
+2. In the Worker's **Settings → Variables and Secrets**, add a **Secret**
+   named `ADMIN_CODE` with your passcode. Until it's set, `/admin` stays locked.
+
+The `name` in `wrangler.jsonc` (`haunt`) must match the Worker's name in the
+dashboard, or the build stops with a name-mismatch error.
+
+**From a terminal**, the same thing:
 
 ```bash
 npm install
 npx wrangler login
-
-npx wrangler d1 create haunt              # copy database_id into wrangler.jsonc
-npx wrangler kv namespace create PHOTOS   # copy id into wrangler.jsonc
-npx wrangler d1 execute haunt --remote --file=./schema.sql
-npx wrangler secret put ADMIN_CODE        # pick your admin passcode
 npx wrangler deploy
+npx wrangler secret put ADMIN_CODE
 ```
-
-Deploying from the Cloudflare dashboard instead? Do the first three commands once,
-commit the two ids, and set `ADMIN_CODE` under the Worker's
-**Settings → Variables and Secrets**.
 
 ## Local development
 
 ```bash
 echo 'ADMIN_CODE=1031' > .dev.vars        # gitignored
-npx wrangler d1 execute haunt --local --file=./schema.sql
 npx wrangler dev
 ```
 

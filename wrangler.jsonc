@@ -17,21 +17,15 @@
     "VOTING_ENDS": "2026-10-31T23:59:00-05:00"
   },
 
-  // Houses and votes.
+  // No ids on purpose: the first `wrangler deploy` creates the database and
+  // the photo store and attaches them to the Worker; later deploys reuse them.
+  // Houses and votes:
   "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "haunt",
-      "database_id": "PUT-YOUR-D1-DATABASE-ID-HERE"
-    }
+    { "binding": "DB", "database_name": "haunt" }
   ],
-
-  // Photo files.
+  // Photo files:
   "kv_namespaces": [
-    {
-      "binding": "PHOTOS",
-      "id": "PUT-YOUR-KV-NAMESPACE-ID-HERE"
-    }
+    { "binding": "PHOTOS" }
   ]
 
   // Secret, set once and never committed:

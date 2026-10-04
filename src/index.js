@@ -1,3 +1,32 @@
+/* ================= schema =================
+   The Worker creates its own tables, so a fresh deploy needs no setup step.
+   CREATE ... IF NOT EXISTS is a no-op once they exist, and it runs once per
+   Worker instance rather than once per request. */
+let schemaReady = null;
+function ensureSchema(env) {
+  schemaReady ??= env.DB.batch([
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS houses (
+      id       TEXT PRIMARY KEY,
+      name     TEXT    NOT NULL,
+      location TEXT    NOT NULL DEFAULT '',
+      photos   TEXT    NOT NULL DEFAULT '[]',
+      created  INTEGER NOT NULL
+    )`),
+    // voter is the primary key, so each phone has exactly one pick and
+    // changing it is an upsert.
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS votes (
+      voter    TEXT PRIMARY KEY,
+      house_id TEXT    NOT NULL,
+      ts       INTEGER NOT NULL
+    )`),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS votes_house ON votes (house_id)'),
+  ]).catch((err) => {
+    schemaReady = null; // let the next request try again
+    throw err;
+  });
+  return schemaReady;
+}
+
 /* ================= helpers ================= */
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -256,6 +285,10 @@ export default {
     const method = req.method === 'HEAD' ? 'GET' : req.method;
 
     try {
+      // Every route below except static files touches the database.
+      const needsDb = path === '/' || /^\/(h|p|api)\//.test(path);
+      if (needsDb) await ensureSchema(env);
+
       if (method === 'GET' && path === '/') return await servePage(req, env, null);
       const house = /^\/h\/([a-z0-9]+)\/?$/.exec(path);
       if (method === 'GET' && house) return await servePage(req, env, house[1]);

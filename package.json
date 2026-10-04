@@ -4,8 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "schema": "wrangler d1 execute haunt --remote --file=./schema.sql"
+    "deploy": "wrangler deploy"
   },
   "devDependencies": {
     "wrangler": "^4.129.0"
