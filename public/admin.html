@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Admin · The Haunt</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎃</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--night:#0E0A14;--panel:#1B1424;--edge:#2C2136;--porch:#FF8A3D;--glow:#FFD08A;--bone:#EDE6DA;--dim:#9A8DA8;--moss:#7FA388;--red:#E4736A}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--night);color:var(--bone);font:16px/1.45 "DM Sans",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;padding:0}
+.disp{font-family:"Fraunces",Georgia,serif;font-weight:800;letter-spacing:-.02em;line-height:1.05}
+.wrap{max-width:640px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 24px) 18px calc(env(safe-area-inset-bottom) + 60px)}
+h1{font-size:34px;margin:0}
+.sub{color:var(--dim);margin:6px 0 0;font-size:14px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:22px}
+a.link{color:var(--glow);font-size:14px;text-decoration:none;white-space:nowrap;padding-top:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:999px;font-weight:700;
+  border:1px solid var(--edge);background:var(--panel)}
+.btn.primary{background:var(--porch);border-color:var(--porch);color:#1B0E04}
+.btn.wide{width:100%}
+.btn:disabled{opacity:.5}
+.danger{color:var(--red)}
+label{display:block;font-size:13px;font-weight:700;letter-spacing:.04em;margin:18px 0 6px}
+.hint{font-weight:400;color:var(--dim);letter-spacing:0}
+input[type=text],input[type=password]{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--edge);background:var(--panel);outline:none}
+input:focus{border-color:var(--porch)}
+.panel{background:var(--panel);border:1px solid var(--edge);border-radius:18px;padding:18px}
+.stats{display:flex;gap:10px;margin-bottom:18px}
+.stat{flex:1;background:var(--panel);border:1px solid var(--edge);border-radius:14px;padding:12px 14px}
+.stat b{display:block;font-family:"Fraunces",Georgia,serif;font-size:26px}
+.stat span{font-size:13px;color:var(--dim)}
+.row{display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--edge)}
+.row:first-child{border-top:0}
+.row img{width:64px;height:64px;border-radius:10px;object-fit:cover;background:#140f1b;flex:0 0 auto}
+.row .t{flex:1;min-width:0}
+.row .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t span{font-size:13px;color:var(--dim);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .n{text-align:right;font-size:13px;color:var(--dim)}
+.row .n b{display:block;font-size:20px;color:var(--glow);font-family:"Fraunces",Georgia,serif}
+.thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.thumb{position:relative;border-radius:10px;overflow:hidden;aspect-ratio:1;background:#140f1b}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .x,.thumb .c{position:absolute;top:6px;width:28px;height:28px;border-radius:50%;background:rgba(14,10,20,.85);font-size:14px;display:flex;align-items:center;justify-content:center}
+.thumb .x{right:6px}
+.thumb .c{left:6px}
+.thumb .cover{position:absolute;left:6px;bottom:6px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--porch);color:#1B0E04}
+.addph{aspect-ratio:1;border-radius:10px;border:1.5px dashed var(--edge);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--dim);font-size:13px;gap:2px}
+.addph b{font-size:24px;color:var(--bone)}
+.actions{display:flex;gap:10px;margin-top:22px}
+.actions .btn{flex:1}
+.empty{color:var(--dim);text-align:center;padding:22px 0}
+[hidden]{display:none!important}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 22px);transform:translate(-50%,20px);opacity:0;pointer-events:none;
+  padding:11px 18px;border-radius:999px;background:var(--bone);color:var(--night);font-weight:700;font-size:14px;transition:.2s;max-width:90vw}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- passcode -->
+  <section id="gate">
+    <h1 class="disp">Admin</h1>
+    <p class="sub">The Haunt · East Lakeview</p>
+    <form id="gateForm" class="panel" style="margin-top:22px">
+      <label for="code" style="margin-top:0">Passcode</label>
+      <input type="password" id="code" autocomplete="current-password" autofocus>
+      <button class="btn primary wide" style="margin-top:14px">Unlock</button>
+    </form>
+  </section>
+
+  <!-- list -->
+  <section id="list" hidden>
+    <div class="top">
+      <div><h1 class="disp">Houses</h1><p class="sub" id="closesAt"></p></div>
+      <a class="link" href="/" target="_blank">View site ↗</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="sHouses">0</b><span>houses</span></div>
+      <div class="stat"><b id="sVotes">0</b><span>votes so far</span></div>
+    </div>
+    <button class="btn primary wide" id="addBtn">+ Add a house</button>
+    <div class="panel" style="margin-top:16px" id="rows"></div>
+    <p class="sub" style="margin-top:12px">Vote counts are only visible here until voting closes.</p>
+  </section>
+
+  <!-- add / edit -->
+  <section id="edit" hidden>
+    <div class="top"><h1 class="disp" id="editTitle">Add a house</h1></div>
+    <form id="editForm">
+      <label for="fName">Name <span class="hint">· what people will see</span></label>
+      <input type="text" id="fName" maxlength="60" placeholder="e.g. The Skeleton Porch" required>
+      <label for="fLoc">Location <span class="hint">· as exact as you want to share</span></label>
+      <input type="text" id="fLoc" maxlength="120" placeholder="e.g. 3400 block of N Halsted">
+      <label>Photos <span class="hint">· the first one is the cover</span></label>
+      <div class="thumbs" id="thumbs"></div>
+      <input type="file" id="file" accept="image/*" multiple hidden>
+      <div class="actions">
+        <button type="button" class="btn" id="cancel">Cancel</button>
+        <button class="btn primary" id="save">Save</button>
+      </div>
+      <button type="button" class="btn wide danger" id="del" style="margin-top:28px;background:none">Delete this house</button>
+    </form>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2600)}
+
+let code='';try{code=sessionStorage.getItem('haunt:admin')||''}catch(e){}
+let data={houses:[],counts:{}};
+// While editing: existing photo ids and new not-yet-uploaded photos, in display order.
+let editing=null,slots=[];
+
+async function api(method,path,body){
+  const res=await fetch('/api/admin/'+path,{method,headers:{'content-type':'application/json','x-admin':code},
+    body:body?JSON.stringify(body):undefined});
+  const d=await res.json().catch(()=>({}));
+  if(!res.ok){const e=new Error(d.error||'Something went wrong.');e.status=res.status;throw e}
+  return d;
+}
+function show(id){['gate','list','edit'].forEach(s=>$('#'+s).hidden=s!==id);window.scrollTo(0,0)}
+
+/* ---- passcode ---- */
+$('#gateForm').onsubmit=async e=>{
+  e.preventDefault();code=$('#code').value.trim();
+  try{await api('POST','check');try{sessionStorage.setItem('haunt:admin',code)}catch(e){}await loadList()}
+  catch(err){toast(err.status===403?'Wrong passcode.':err.message)}
+};
+
+/* ---- list ---- */
+async function loadList(){
+  try{data=await api('GET','houses')}
+  catch(err){if(err.status===403){code='';show('gate');return}return toast(err.message)}
+  const total=Object.values(data.counts).reduce((a,n)=>a+n,0);
+  $('#sHouses').textContent=data.houses.length;$('#sVotes').textContent=total;
+  const end=new Date(data.endsAt).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/Chicago'});
+  $('#closesAt').textContent=data.closed?'Voting is closed':'Voting closes '+end;
+  const rows=data.houses.slice().sort((a,b)=>(data.counts[b.id]||0)-(data.counts[a.id]||0)||a.created-b.created);
+  $('#rows').innerHTML=rows.length?rows.map(h=>`<button class="row" style="width:100%;text-align:left" data-edit="${esc(h.id)}">
+      <img src="/p/${esc(h.photos[0])}/t" alt="">
+      <span class="t"><b>${esc(h.name)}</b><span>${esc(h.location||'No location')} · ${h.photos.length} photo${h.photos.length===1?'':'s'}</span></span>
+      <span class="n"><b>${data.counts[h.id]||0}</b>votes</span></button>`).join('')
+    :'<div class="empty">No houses yet. Add the first one.</div>';
+  show('list');
+}
+$('#rows').onclick=e=>{const r=e.target.closest('[data-edit]');if(r)openEdit(r.dataset.edit)};
+$('#addBtn').onclick=()=>openEdit(null);
+
+/* ---- add / edit ---- */
+function openEdit(id){
+  editing=id?data.houses.find(h=>h.id===id):null;
+  $('#editTitle').textContent=editing?'Edit house':'Add a house';
+  $('#fName').value=editing?editing.name:'';
+  $('#fLoc').value=editing?editing.location:'';
+  slots=editing?editing.photos.map(pid=>({pid,src:`/p/${pid}/t`})):[];
+  $('#del').hidden=!editing;
+  renderThumbs();show('edit');
+}
+function renderThumbs(){
+  $('#thumbs').innerHTML=slots.map((s,i)=>`<div class="thumb"><img src="${s.src}" alt="">
+      <button type="button" class="x" data-x="${i}" aria-label="Remove">✕</button>
+      ${i?`<button type="button" class="c" data-c="${i}" aria-label="Make cover">★</button>`:'<span class="cover">Cover</span>'}</div>`).join('')
+    +`<button type="button" class="addph" id="addPh"><b>+</b>Add photos</button>`;
+}
+$('#thumbs').onclick=e=>{
+  const x=e.target.closest('[data-x]'),c=e.target.closest('[data-c]');
+  if(x){slots.splice(+x.dataset.x,1);renderThumbs()}
+  else if(c){const [s]=slots.splice(+c.dataset.c,1);slots.unshift(s);renderThumbs()}
+  else if(e.target.closest('#addPh'))$('#file').click();
+};
+
+// Resize on the phone: a 12MP photo becomes a few hundred KB, and the grid gets
+// its own small version so the page stays quick on cell data.
+async function shrink(file,maxSide,quality){
+  let img;
+  try{img=await createImageBitmap(file,{imageOrientation:'from-image'})}
+  catch(e){img=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=URL.createObjectURL(file)})}
+  const scale=Math.min(1,maxSide/Math.max(img.width,img.height));
+  const c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',quality);
+}
+$('#file').onchange=async e=>{
+  const files=[...e.target.files];e.target.value='';
+  for(const f of files){
+    try{
+      const full=await shrink(f,1600,.82),thumb=await shrink(f,640,.75);
+      slots.push({full,thumb,src:thumb});renderThumbs();
+    }catch(err){toast('That photo would not open.')}
+  }
+};
+$('#cancel').onclick=()=>show('list');
+
+$('#editForm').onsubmit=async e=>{
+  e.preventDefault();
+  const name=$('#fName').value.trim();
+  if(!name)return toast('Give it a name.');
+  if(!slots.length)return toast('Add at least one photo.');
+  // `order` mirrors the screen exactly, so whatever is first stays the cover.
+  const fresh=slots.filter(s=>!s.pid);
+  const body={name,location:$('#fLoc').value.trim(),
+    order:slots.map(s=>s.pid||'new:'+fresh.indexOf(s)),
+    newPhotos:fresh.map(s=>({full:s.full,thumb:s.thumb}))};
+  const btn=$('#save');btn.disabled=true;btn.textContent='Saving…';
+  try{
+    if(editing)await api('PUT','houses/'+editing.id,body);
+    else await api('POST','houses',body);
+    toast('Saved');
+    await loadList();
+  }catch(err){toast(err.message)}
+  finally{btn.disabled=false;btn.textContent='Save'}
+};
+$('#del').onclick=async()=>{
+  if(!editing||!confirm(`Delete “${editing.name}”? Anyone who picked it gets their vote back.`))return;
+  try{await api('DELETE','houses/'+editing.id);toast('Deleted');await loadList()}
+  catch(err){toast(err.message)}
+};
+
+if(code)loadList();else show('gate');
+</script>
+</body>
+</html>
